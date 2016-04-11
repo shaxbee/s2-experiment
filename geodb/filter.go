@@ -8,51 +8,59 @@ import (
 )
 
 type Filter struct {
-	distance Distance
 	contains func(s2.LatLng) bool
 	limit    int
-	center   s2.LatLng
+	origin   s2.LatLng
 	data     elements
 }
 
 // Element represents pair of distance and index
 type Element struct {
 	Distance float64
-	Value    interface{}
+	Index    int
 }
 
-func FromCap(c s2.Cap, d Distance, limit int) *Filter {
+func FromCap(c s2.Cap, limit int) *Filter {
 	return &Filter{
-		distance: d,
 		contains: func(ll s2.LatLng) bool {
 			return c.ContainsPoint(s2.PointFromLatLng(ll))
 		},
 		limit:  limit,
-		center: s2.LatLngFromPoint(c.Center()),
+		origin: s2.LatLngFromPoint(c.Center()),
 		data:   make([]Element, 0, limit),
 	}
 }
 
-func FromRect(r s2.Rect, d Distance, limit int) *Filter {
+func FromRect(r s2.Rect, limit int) *Filter {
 	return &Filter{
-		distance: d,
 		contains: r.ContainsLatLng,
 		limit:    limit,
-		center:   r.Center(),
+		origin:   r.Center(),
 		data:     make([]Element, 0, limit),
+	}
+}
+
+func FromLoop(l s2.Loop, ll s2.LatLng, limit int) *Filter {
+	return &Filter{
+		contains: func(ll s2.LatLng) bool {
+			return l.ContainsPoint(s2.PointFromLatLng(ll))
+		},
+		limit:  limit,
+		origin: ll,
+		data:   make([]Element, 0, limit),
 	}
 }
 
 // Add registers given position and index in filter
 // Element is added if point is withing specified region and
 // is not further away than furthest existing element if filter is full
-func (f *Filter) Add(ll s2.LatLng, i interface{}) {
+func (f *Filter) Add(ll s2.LatLng, i int) {
 	// ll is out of bounds
 	if !f.contains(ll) {
 		return
 	}
 
-	d := f.distance(f.center, ll)
+	d := Distance(f.origin, ll)
 	if f.limit == len(f.data) {
 		// discard if distance > maxDistance
 		if d > f.data[len(f.data)-1].Distance {
@@ -69,6 +77,25 @@ func (f *Filter) Add(ll s2.LatLng, i interface{}) {
 func (f *Filter) Elements() []Element {
 	r := f.data
 	sort.Sort(r)
+	return r
+}
+
+type GetLatLng func(interface{}) s2.LatLng
+type SetDistance func(interface{}, float64)
+
+func (f *Filter) Filter(s []interface{}, ll GetLatLng, d SetDistance) []interface{} {
+	for i, v := range s {
+		f.Add(ll(v), i)
+	}
+
+	es := f.Elements()
+	r := make([]interface{}, len(es))
+	for i, e := range es {
+		v := s[e.Index]
+		d(v, e.Distance)
+		r[i] = v
+	}
+
 	return r
 }
 

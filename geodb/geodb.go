@@ -1,35 +1,23 @@
 package geodb
 
 import (
-	"bytes"
-	"fmt"
-
+	sq "github.com/elgris/sqrl"
 	"github.com/golang/geo/s2"
+	"github.com/jmoiron/sqlx"
 )
 
 type GeoDB struct {
-	cellID  string
 	coverer *s2.RegionCoverer
 }
 
 type Config struct {
-	CellID   string
 	MinLevel int
 	MaxLevel int
 	MaxCells int
 }
 
-const (
-	DefaultCellID = "cell_id"
-)
-
 func New(c Config) *GeoDB {
-	if c.CellID == "" {
-		c.CellID = DefaultCellID
-	}
-
 	return &GeoDB{
-		cellID: c.CellID,
 		coverer: &s2.RegionCoverer{
 			MinLevel: c.MinLevel,
 			MaxLevel: c.MaxLevel,
@@ -38,31 +26,23 @@ func New(c Config) *GeoDB {
 	}
 }
 
-func (g *GeoDB) Select(r s2.Region) (string, []interface{}) {
+func (g *GeoDB) Within(q *sq.SelectBuilder, r s2.Region) *sq.SelectBuilder {
+	q = q.Columns("lat", "lng", "cell_id")
 	c := g.coverer.Covering(r)
-	p := make([]interface{}, len(c)*2)
-	for i, c := range c {
-		p[i*2], p[i*2+1] = int64(c.RangeMin()), int64(c.RangeMax())
+	for _, x := range c {
+		q = q.Where(match, int64(x.RangeMin()), int64(x.RangeMax()))
 	}
 
-	return g.query(len(c)), p
+	return q
 }
 
-func (g *GeoDB) query(n int) string {
-	if n == 0 {
-		return ""
+func (g *GeoDB) QueryWithin(db *sqlx.DB, q *sq.SelectBuilder, r s2.Region) (*sqlx.Rows, error) {
+	s, v, err := g.Within(q, r).ToSql()
+	if err != nil {
+		return nil, err
 	}
 
-	match := []byte(fmt.Sprint("(", g.cellID, " BETWEEN ? AND ?)"))
-	or := []byte(" OR ")
-
-	b := bytes.NewBuffer(make([]byte, 0, len(match)*n+len(or)*(n-1)))
-
-	b.Write(match)
-	for i := 0; i < n-1; i++ {
-		b.Write(or)
-		b.Write(match)
-	}
-
-	return b.String()
+	return db.Queryx(s, v...)
 }
+
+var match = "(cell_id BETWEEN ? AND ?)"
