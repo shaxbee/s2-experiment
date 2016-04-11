@@ -7,7 +7,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/shaxbee/s2-experiment/geodb"
-	"github.com/shaxbee/s2-experiment/geodb/filter"
 )
 
 type job struct {
@@ -59,7 +58,7 @@ func main() {
 		}
 	}
 
-	search := geodb.NearSphere(jobs[0].LatLng(), 0.25)
+	search := geodb.NearSphere(jobs[0].LatLng(), 0.743)
 
 	g := geodb.New(geodb.Config{})
 	where, vals := g.Select(search)
@@ -74,7 +73,7 @@ func main() {
 		panic(err)
 	}
 
-	f := filter.FromCap(search, geodb.DefaultDistance, 10)
+	f := geodb.FromCap(search, geodb.DefaultDistance, 10)
 
 	for r.Next() {
 		j := &job{}

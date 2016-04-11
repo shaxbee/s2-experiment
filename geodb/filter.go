@@ -1,15 +1,14 @@
-package filter
+package geodb
 
 import (
 	"container/heap"
 	"sort"
 
 	"github.com/golang/geo/s2"
-	"github.com/shaxbee/s2-experiment/geodb"
 )
 
 type Filter struct {
-	distance geodb.Distance
+	distance Distance
 	contains func(s2.LatLng) bool
 	limit    int
 	center   s2.LatLng
@@ -22,7 +21,7 @@ type Element struct {
 	Value    interface{}
 }
 
-func FromCap(c s2.Cap, d geodb.Distance, limit int) *Filter {
+func FromCap(c s2.Cap, d Distance, limit int) *Filter {
 	return &Filter{
 		distance: d,
 		contains: func(ll s2.LatLng) bool {
@@ -34,7 +33,7 @@ func FromCap(c s2.Cap, d geodb.Distance, limit int) *Filter {
 	}
 }
 
-func FromRect(r s2.Rect, d geodb.Distance, limit int) *Filter {
+func FromRect(r s2.Rect, d Distance, limit int) *Filter {
 	return &Filter{
 		distance: d,
 		contains: r.ContainsLatLng,
